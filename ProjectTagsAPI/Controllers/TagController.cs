@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProjectTagsAPI.Data;
 using ProjectTagsAPI.Models;
 using System;
@@ -7,31 +8,59 @@ using System.Threading.Tasks;
 
 namespace ProjectTagsAPI.Controllers
 {
-    [Route("api/projects/{projectId}/tags")]
     [ApiController]
-    public class TagController : ControllerBase
+    [Route("api/[controller]")]
+    public class TagsController : ControllerBase
     {
         private readonly ProjectTagsContext _context;
 
-        public TagController(ProjectTagsContext context)
+        public TagsController(ProjectTagsContext context)
         {
             _context = context;
         }
 
-        [HttpPost]
-        public async Task<IActionResult> AddTag(Guid projectId, [FromBody] Tag tag)
+        // GET api/tags
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<TagData>>> GetTags()
         {
-            tag.ProjectID = projectId;
-            _context.Tags.Add(tag);
-            await _context.SaveChangesAsync();
-            return Ok(new { Message = "Tag added successfully!", TagID = tag.TagID });
+            return await _context.Tags.ToListAsync();
         }
 
-        [HttpGet]
-        public IActionResult GetTags(Guid projectId)
+        // GET api/tags/{tagName}
+        [HttpGet("{tagName}")]
+        public async Task<ActionResult<TagData>> GetTagByName(string tagName)
         {
-            var tags = _context.Tags.Where(t => t.ProjectID == projectId).ToList();
-            return Ok(tags);
+            var tag = await _context.Tags.FindAsync(tagName);
+            if (tag == null)
+            {
+                return NotFound($"Tag with name '{tagName}' not found.");
+            }
+            return tag;
+        }
+
+        // POST api/tags
+        [HttpPost]
+        public async Task<IActionResult> CreateOrUpdateTag(TagData tag)
+        {
+            if (tag == null || string.IsNullOrWhiteSpace(tag.TagName))
+            {
+                return BadRequest("TagName is required.");
+            }
+
+            var existingTag = await _context.Tags.FindAsync(tag.TagName);
+            if (existingTag != null)
+            {
+                // Update existing tag
+                existingTag.CuttingTime = tag.CuttingTime;
+            }
+            else
+            {
+                // Add new tag
+                _context.Tags.Add(tag);
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(tag);
         }
     }
 }
